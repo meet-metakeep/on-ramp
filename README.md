@@ -33,8 +33,8 @@ A Next.js application demonstrating secure integration with Coinbase's Onramp se
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
-   cd onrampp
+   git clone https://github.com/meet-metakeep/on-ramp
+   cd on-ramp
    ```
 
 2. **Install dependencies**
