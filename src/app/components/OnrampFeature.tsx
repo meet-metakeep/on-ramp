@@ -202,8 +202,10 @@ export default function OnrampFeature() {
       setConnectionStatus(
         `✅ Connected: ${address.slice(0, 6)}...${address.slice(-4)}`
       );
+      setIsConnecting(false);
     } else if (!isConnected) {
       setConnectionStatus("");
+      setIsConnecting(false);
     }
   }, [isConnected, address]);
 
@@ -214,6 +216,7 @@ export default function OnrampFeature() {
 
   // Add connection status for debugging
   const [connectionStatus, setConnectionStatus] = useState("");
+  const [isConnecting, setIsConnecting] = useState(false);
 
   // UI state management
   const [generatedUrl, setGeneratedUrl] = useState(""); // Generated Coinbase onramp URL
@@ -405,6 +408,19 @@ export default function OnrampFeature() {
   const selectedPaymentMethodInfo = PAYMENT_METHODS.find(
     (pm) => pm.code === selectedPaymentMethod
   );
+
+  const getConnectorDisplayName = (connectorId: string) => {
+    switch (connectorId) {
+      case "coinbaseWalletSDK":
+        return "Coinbase Wallet";
+      case "metaMask":
+        return "MetaMask";
+      case "walletConnect":
+        return "WalletConnect";
+      default:
+        return connectorId;
+    }
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">

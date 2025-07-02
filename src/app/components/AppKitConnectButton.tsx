@@ -7,5 +7,6 @@
  */
 
 export default function AppKitConnectButton() {
+  // @ts-expect-error - AppKit web component
   return <appkit-button />;
 }
