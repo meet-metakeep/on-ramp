@@ -58,7 +58,7 @@ const GeneratedLinkModal = memo(function GeneratedLinkModal({
           </button>
           <button
             onClick={onOpen}
-            className="w-full sm:w-1/2 bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-semibold transition-all duration-200 shadow-sm hover:shadow-md"
+            className="w-full sm:w-1/2 bg-black-600 border-2 border-gray-300 hover:bg-black-700 text-black py-3 px-6 rounded-lg font-semibold transition-all duration-200 shadow-sm hover:shadow-md"
           >
             🚀 Open URL
           </button>

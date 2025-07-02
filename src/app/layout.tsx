@@ -1,7 +1,8 @@
 import "@coinbase/onchainkit/styles.css";
 import type { Metadata } from "next";
 import "./globals.css";
-import { Providers } from "./providers";
+import { headers } from "next/headers";
+import ContextProvider from "../../context";
 
 export const metadata: Metadata = {
   title: "Coinbase Onramp & Offramp Demo",
@@ -28,15 +29,18 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const headersObj = await headers();
+  const cookies = headersObj.get("cookie");
+
   return (
     <html lang="en" className="light">
       <body className="bg-background" suppressHydrationWarning={true}>
-        <Providers>{children}</Providers>
+        <ContextProvider cookies={cookies}>{children}</ContextProvider>
       </body>
     </html>
   );

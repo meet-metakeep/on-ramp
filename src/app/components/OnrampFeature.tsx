@@ -8,10 +8,15 @@
  */
 
 import React, { useState } from "react";
-import { useAccount, useConnect, useDisconnect } from "wagmi";
+import { useAppKitAccount } from "@reown/appkit/react";
 import { generateOnrampURL } from "../utils/rampUtils";
 import { countryNames } from "../utils/onrampApi";
+import {
+  validateAddressForNetwork,
+  getExampleAddress,
+} from "../utils/addressValidation";
 import GeneratedLinkModal from "./GeneratedLinkModal";
+import AppKitConnectButton from "./AppKitConnectButton";
 
 /**
  * @dev US States configuration for location-specific onramp requirements
@@ -78,30 +83,52 @@ const US_STATES = [
 const ASSETS = [
   { symbol: "USDC", name: "USD Coin" },
   { symbol: "ETH", name: "Ethereum" },
-  { symbol: "BTC", name: "Bitcoin" },
   { symbol: "SOL", name: "Solana" },
-  { symbol: "MATIC", name: "Polygon" },
-  { symbol: "AVAX", name: "Avalanche" },
-  { symbol: "LINK", name: "Chainlink" },
-  { symbol: "UNI", name: "Uniswap" },
-  { symbol: "AAVE", name: "Aave" },
-  { symbol: "DAI", name: "Dai" },
+  // Temporarily commented out assets that require unavailable networks
+  // { symbol: "BTC", name: "Bitcoin" },
+  // { symbol: "MATIC", name: "Polygon" },
+  // { symbol: "AVAX", name: "Avalanche" },
+  // { symbol: "LINK", name: "Chainlink" },
+  // { symbol: "UNI", name: "Uniswap" },
+  // { symbol: "AAVE", name: "Aave" },
+  // { symbol: "DAI", name: "Dai" },
 ];
 
 /**
  * @dev Supported blockchain networks for crypto delivery
  * @notice Network selection affects transaction fees and confirmation times
+ * @dev Only includes networks officially supported by Coinbase Onramp API
  */
 const NETWORKS = [
   { id: "base", name: "Base" },
   { id: "ethereum", name: "Ethereum" },
-  { id: "optimism", name: "Optimism" },
-  { id: "arbitrum", name: "Arbitrum" },
-  { id: "polygon", name: "Polygon" },
-  { id: "avalanche", name: "Avalanche" },
   { id: "solana", name: "Solana" },
-  { id: "bsc", name: "BNB Chain" },
+  // Temporarily commented out other networks as requested
+  // { id: "optimism", name: "Optimism" },
+  // { id: "arbitrum", name: "Arbitrum" },
+  // { id: "polygon", name: "Polygon" },
+  // { id: "avalanche-c-chain", name: "Avalanche" },
+  // { id: "bitcoin", name: "Bitcoin" },
 ];
+
+/**
+ * @dev Asset-Network compatibility mapping
+ * @notice Defines which assets are available on which networks
+ * @dev Based on Coinbase Onramp API supported combinations
+ */
+const ASSET_NETWORK_MAP: Record<string, string[]> = {
+  USDC: ["ethereum", "base", "solana"],
+  ETH: ["ethereum", "base"],
+  SOL: ["solana"],
+  // Temporarily commented out assets that require unavailable networks
+  // BTC: ["bitcoin"],
+  // MATIC: ["polygon", "ethereum"],
+  // AVAX: ["avalanche-c-chain", "ethereum"],
+  // LINK: ["ethereum", "base", "arbitrum"],
+  // UNI: ["ethereum", "polygon"],
+  // AAVE: ["ethereum", "polygon"],
+  // DAI: ["ethereum", "polygon"],
+};
 
 /**
  * @dev Supported fiat currencies for payments
@@ -121,33 +148,39 @@ const PAYMENT_CURRENCIES = [
 /**
  * @dev Supported payment methods with regional availability
  * @notice Each method has different processing times and limits
+ * @dev Only includes methods officially supported by Coinbase Onramp API
  */
 const PAYMENT_METHODS = [
   {
     code: "CARD",
     name: "Debit Card",
-    description: "Debit or Credit Card (Available in most countries)",
-  },
-  {
-    code: "BANK_TRANSFER",
-    name: "Bank Transfer",
-    description: "Direct bank transfer",
+    description: "Debit or Credit Card (Available in 90+ countries)",
   },
   {
     code: "ACH_BANK_ACCOUNT",
-    name: "ACH",
+    name: "ACH Bank Transfer",
     description: "ACH Bank Transfer (US only)",
   },
   {
-    code: "SEPA_BANK_ACCOUNT",
-    name: "SEPA",
-    description: "SEPA Bank Transfer (Europe)",
+    code: "APPLE_PAY",
+    name: "Apple Pay",
+    description: "Apple Pay (US only, Guest Checkout)",
   },
-  { code: "IDEAL", name: "iDEAL", description: "iDEAL (Netherlands)" },
-  { code: "SOFORT", name: "SOFORT", description: "SOFORT (Europe)" },
-  { code: "APPLE_PAY", name: "Apple Pay", description: "Apple Pay" },
-  { code: "GOOGLE_PAY", name: "Google Pay", description: "Google Pay" },
-  { code: "PAYPAL", name: "PayPal", description: "PayPal" },
+  // Temporarily commented out payment methods not confirmed as supported
+  // {
+  //   code: "BANK_TRANSFER",
+  //   name: "Bank Transfer",
+  //   description: "Direct bank transfer",
+  // },
+  // {
+  //   code: "SEPA_BANK_ACCOUNT",
+  //   name: "SEPA",
+  //   description: "SEPA Bank Transfer (Europe)",
+  // },
+  // { code: "IDEAL", name: "iDEAL", description: "iDEAL (Netherlands)" },
+  // { code: "SOFORT", name: "SOFORT", description: "SOFORT (Europe)" },
+  // { code: "GOOGLE_PAY", name: "Google Pay", description: "Google Pay" },
+  // { code: "PAYPAL", name: "PayPal", description: "PayPal" },
 ];
 
 /**
@@ -156,15 +189,31 @@ const PAYMENT_METHODS = [
  * @return JSX.Element The rendered onramp interface
  */
 export default function OnrampFeature() {
-  // Wagmi hooks for wallet connection management
-  const { address, isConnected } = useAccount();
-  const { connect, connectors } = useConnect();
-  const { disconnect } = useDisconnect();
+  // AppKit hooks for wallet connection management
+  const { address, isConnected } = useAppKitAccount();
+
+  // Add connection status logging
+  React.useEffect(() => {
+    if (isConnected && address) {
+      console.log("✅ Wallet connected successfully:", {
+        address,
+        isConnected,
+      });
+      setConnectionStatus(
+        `✅ Connected: ${address.slice(0, 6)}...${address.slice(-4)}`
+      );
+    } else if (!isConnected) {
+      setConnectionStatus("");
+    }
+  }, [isConnected, address]);
 
   // Core onramp configuration state
   const [selectedAsset, setSelectedAsset] = useState("USDC"); // Cryptocurrency to purchase
-  const [amount, setAmount] = useState("10"); // Fiat amount to spend
-  const [selectedNetwork, setSelectedNetwork] = useState("base"); // Blockchain network for delivery
+  const [amount, setAmount] = useState("5"); // Fiat amount to spend
+  const [selectedNetwork, setSelectedNetwork] = useState("base"); // Blockchain network for delivery (base is compatible with USDC)
+
+  // Add connection status for debugging
+  const [connectionStatus, setConnectionStatus] = useState("");
 
   // UI state management
   const [generatedUrl, setGeneratedUrl] = useState(""); // Generated Coinbase onramp URL
@@ -174,20 +223,20 @@ export default function OnrampFeature() {
   const [selectedCountry, setSelectedCountry] = useState("US"); // User's country
   const [selectedState, setSelectedState] = useState("CA"); // US state (if applicable)
 
-  // Security and session management
-  const [useSecureInit, setUseSecureInit] = useState(true); // Enable secure session tokens
+  // Security and session management - always enabled for proper functionality
+  const [useSecureInit] = useState(true); // Always enabled - required for valid session tokens
   const [isGeneratingToken, setIsGeneratingToken] = useState(false); // Token generation loading state
 
   // Payment configuration
   const [selectedPaymentCurrency, setSelectedPaymentCurrency] = useState("USD"); // Fiat currency
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("CARD"); // Payment method
 
-  // Integration mode and wallet handling
-  const [integrationMode, setIntegrationMode] = useState("API"); // API or LINK mode
+  // Integration mode and wallet handling - simplified to single mode
+  const [integrationMode] = useState("API"); // Fixed to API mode only
   const [manualAddress, setManualAddress] = useState(""); // Manual wallet address for guest checkout
   const [useManualAddress, setUseManualAddress] = useState(false); // Guest checkout toggle
 
-  const presetAmounts = ["10", "25", "50"];
+  const presetAmounts = ["5", "25", "50"];
 
   /**
    * @notice Generates a secure session token for enhanced onramp security
@@ -197,11 +246,54 @@ export default function OnrampFeature() {
   const generateSessionToken = async () => {
     setIsGeneratingToken(true);
     try {
+      const targetAddress = useManualAddress ? manualAddress : address;
+
+      if (!targetAddress) {
+        throw new Error("No wallet address available");
+      }
+
+      // Validate address format for the selected network
+      const validation = validateAddressForNetwork(
+        targetAddress,
+        selectedNetwork
+      );
+      if (!validation.isValid) {
+        const exampleAddr = getExampleAddress(selectedNetwork);
+        const errorMessage = `${validation.error}\n\n${validation.suggestion}${
+          exampleAddr
+            ? `\n\nExample for ${selectedNetwork}: ${exampleAddr}`
+            : ""
+        }`;
+        alert(errorMessage);
+        throw new Error(`Address validation failed: ${validation.error}`);
+      }
+
+      // Prepare addresses array with the selected network
+      const addresses = [
+        {
+          address: targetAddress,
+          blockchains: [selectedNetwork], // Include the specific network (solana, ethereum, base, etc.)
+        },
+      ];
+
+      console.log(
+        `✅ Address validation passed: ${targetAddress} is valid for ${selectedNetwork} network`
+      );
+
       const response = await fetch("/api/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ walletAddress: address || manualAddress }),
+        body: JSON.stringify({
+          addresses,
+          assets: [selectedAsset],
+        }),
       });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to generate session token");
+      }
+
       const data = await response.json();
       if (data.token) {
         return data.token;
@@ -244,6 +336,24 @@ export default function OnrampFeature() {
     if (useManualAddress && !manualAddress) {
       alert("Please enter a valid wallet address for guest checkout.");
       return;
+    }
+
+    // Validate address format for the selected network (even without secure init)
+    if (targetAddress) {
+      const validation = validateAddressForNetwork(
+        targetAddress,
+        selectedNetwork
+      );
+      if (!validation.isValid) {
+        const exampleAddr = getExampleAddress(selectedNetwork);
+        const errorMessage = `${validation.error}\n\n${validation.suggestion}${
+          exampleAddr
+            ? `\n\nExample for ${selectedNetwork}: ${exampleAddr}`
+            : ""
+        }`;
+        alert(errorMessage);
+        return;
+      }
     }
 
     // Generate secure session token if enabled
@@ -296,19 +406,6 @@ export default function OnrampFeature() {
     (pm) => pm.code === selectedPaymentMethod
   );
 
-  const getConnectorDisplayName = (connectorId: string) => {
-    switch (connectorId) {
-      case "coinbaseWalletSDK":
-        return "Coinbase Wallet";
-      case "metaMask":
-        return "MetaMask";
-      case "walletConnect":
-        return "WalletConnect";
-      default:
-        return connectorId;
-    }
-  };
-
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="text-center mb-8">
@@ -325,7 +422,8 @@ export default function OnrampFeature() {
             Configure Your Onramp
           </h2>
 
-          {/* Integration Mode Tabs */}
+          {/* Integration Mode Tabs - Commented out as requested */}
+          {/* 
           <div className="flex mb-6 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
             <button
               onClick={() => setIntegrationMode("API")}
@@ -348,6 +446,7 @@ export default function OnrampFeature() {
               One-time Payment Link
             </button>
           </div>
+          */}
 
           {/* Country and State Selection */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -394,14 +493,34 @@ export default function OnrampFeature() {
             </label>
             <select
               value={selectedAsset}
-              onChange={(e) => setSelectedAsset(e.target.value)}
+              onChange={(e) => {
+                const newAsset = e.target.value;
+                setSelectedAsset(newAsset);
+
+                // Update network if current selection is incompatible with new asset
+                const compatibleNetworks = ASSET_NETWORK_MAP[newAsset];
+                if (
+                  compatibleNetworks &&
+                  !compatibleNetworks.includes(selectedNetwork)
+                ) {
+                  setSelectedNetwork(compatibleNetworks[0]); // Set to first compatible network
+                }
+              }}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
-              {ASSETS.map((asset) => (
-                <option key={asset.symbol} value={asset.symbol}>
-                  {asset.name} ({asset.symbol})
-                </option>
-              ))}
+              {ASSETS.map((asset) => {
+                const isCompatible =
+                  ASSET_NETWORK_MAP[asset.symbol]?.includes(selectedNetwork) ||
+                  !ASSET_NETWORK_MAP[asset.symbol];
+                return (
+                  <option key={asset.symbol} value={asset.symbol}>
+                    {asset.name} ({asset.symbol})
+                    {!isCompatible
+                      ? " - Not available on " + getNetworkInfo(selectedNetwork)
+                      : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -415,14 +534,23 @@ export default function OnrampFeature() {
               onChange={(e) => setSelectedNetwork(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
-              {NETWORKS.map((network) => (
+              {NETWORKS.filter(
+                (network) =>
+                  ASSET_NETWORK_MAP[selectedAsset]?.includes(network.id) ||
+                  !ASSET_NETWORK_MAP[selectedAsset] // Show all networks if no mapping exists
+              ).map((network) => (
                 <option key={network.id} value={network.id}>
                   {network.name}
                 </option>
               ))}
             </select>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {selectedAsset} is available on {NETWORKS.length} networks
+              {selectedAsset} is available on{" "}
+              {ASSET_NETWORK_MAP[selectedAsset]?.length || NETWORKS.length}{" "}
+              network
+              {(ASSET_NETWORK_MAP[selectedAsset]?.length || NETWORKS.length) > 1
+                ? "s"
+                : ""}
             </p>
           </div>
 
@@ -434,14 +562,14 @@ export default function OnrampFeature() {
             >
               Amount
             </label>
-            <div className="flex space-x-2 mb-2">
+            <div className="flex flex-wrap gap-2 mb-2">
               {presetAmounts.map((preset) => (
                 <button
                   key={preset}
                   onClick={() => setAmount(preset)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                     amount === preset
-                      ? "bg-blue-600 text-white"
+                      ? "bg-blue-600 text-white shadow-sm"
                       : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
                   }`}
                 >
@@ -449,8 +577,8 @@ export default function OnrampFeature() {
                 </button>
               ))}
             </div>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 dark:text-gray-400 z-10">
+            <div className="flex items-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 px-3 py-3 mb-2">
+              <span className="text-gray-500 dark:text-gray-400 text-base font-medium mr-2">
                 $
               </span>
               <input
@@ -460,8 +588,8 @@ export default function OnrampFeature() {
                 onChange={(e) => setAmount(e.target.value)}
                 min="0"
                 step="0.01"
-                className="w-full pl-8 pr-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                placeholder="Enter amount"
+                className="w-full bg-transparent outline-none border-none text-gray-900 dark:text-white text-base"
+                placeholder="0"
               />
             </div>
           </div>
@@ -536,45 +664,51 @@ export default function OnrampFeature() {
                   type="text"
                   value={manualAddress}
                   onChange={(e) => setManualAddress(e.target.value)}
-                  placeholder="0x... (Your wallet address where crypto will be sent)"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
+                  placeholder={`${getExampleAddress(
+                    selectedNetwork
+                  )} (${selectedNetwork} address)`}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm ${
+                    manualAddress &&
+                    !validateAddressForNetwork(manualAddress, selectedNetwork)
+                      .isValid
+                      ? "border-red-500 dark:border-red-400 focus:ring-red-500 focus:border-red-500"
+                      : "border-gray-300 dark:border-gray-600 focus:ring-orange-500 focus:border-orange-500"
+                  }`}
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Enter any wallet address (MetaMask, Phantom, etc.) where you
-                  want to receive the crypto
-                </p>
+                {manualAddress &&
+                  !validateAddressForNetwork(manualAddress, selectedNetwork)
+                    .isValid && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                      ❌ Invalid address format for {selectedNetwork} network.
+                      Expected:{" "}
+                      {
+                        validateAddressForNetwork(
+                          manualAddress,
+                          selectedNetwork
+                        ).suggestion
+                      }
+                    </p>
+                  )}
+                {manualAddress &&
+                  validateAddressForNetwork(manualAddress, selectedNetwork)
+                    .isValid && (
+                    <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                      ✅ Valid {selectedNetwork} address
+                    </p>
+                  )}
+                {!manualAddress && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Enter a {selectedNetwork} wallet address where you want to
+                    receive the crypto
+                  </p>
+                )}
               </div>
             )}
           </div>
 
-          {/* Options */}
-          <div className="mb-6 space-y-4">
-            {/* Guest Checkout option removed - checkbox was not functional */}
-
-            <div className="flex items-center justify-between py-3 px-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-              <div className="flex items-center">
-                <input
-                  id="secure-init"
-                  type="checkbox"
-                  checked={useSecureInit}
-                  onChange={(e) => setUseSecureInit(e.target.checked)}
-                  className="h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
-                />
-                <label
-                  htmlFor="secure-init"
-                  className="ml-3 text-sm font-medium text-gray-900 dark:text-white"
-                >
-                  Use Secure Initialization
-                </label>
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Use session tokens for enhanced security
-            </p>
-          </div>
-
-          {useSecureInit && (
-            <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+          {/* Security Status - Always Enabled */}
+          <div className="mb-6">
+            <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
                   <svg
@@ -584,26 +718,23 @@ export default function OnrampFeature() {
                   >
                     <path
                       fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
                       clipRule="evenodd"
                     />
                   </svg>
                 </div>
                 <div className="ml-3">
                   <p className="text-sm font-medium text-green-800 dark:text-green-200">
-                    Secure Session Enabled
+                    Secure Session Tokens Enabled
                   </p>
                   <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                    This transaction uses secure session tokens for enhanced
-                    security.{" "}
-                    <a href="#" className="underline">
-                      Learn more
-                    </a>
+                    Enhanced security with CDP session tokens for all
+                    transactions
                   </p>
                 </div>
               </div>
             </div>
-          )}
+          </div>
 
           {/* Action Button */}
           <button
@@ -655,18 +786,15 @@ export default function OnrampFeature() {
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 text-center">
                     Connect your wallet to continue
                   </p>
-                  <div className="space-y-2">
-                    {connectors.map((connector) => (
-                      <button
-                        key={connector.id}
-                        onClick={() => connect({ connector })}
-                        className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Connect {getConnectorDisplayName(connector.id)}
-                        </span>
-                      </button>
-                    ))}
+                  {connectionStatus && (
+                    <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border text-center">
+                      <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                        {connectionStatus}
+                      </p>
+                    </div>
+                  )}
+                  <div className="flex justify-center">
+                    <AppKitConnectButton />
                   </div>
                 </div>
               ) : (
@@ -697,12 +825,9 @@ export default function OnrampFeature() {
                         </p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => disconnect()}
-                      className="text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                    >
-                      Disconnect
-                    </button>
+                    <div className="flex justify-center">
+                      <AppKitConnectButton />
+                    </div>
                   </div>
                 </div>
               )}
@@ -759,9 +884,7 @@ export default function OnrampFeature() {
               >
                 Buy with Coinbase
               </div>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">
-                A simple button that opens the Coinbase Onramp flow
-              </p>
+              <p className="text-gray-600 dark:text-gray-400 text-sm"></p>
             </div>
           </div>
 
