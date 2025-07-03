@@ -9,9 +9,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
+// import Image from "next/image"; // Commented out - logo removed
 import { usePathname } from "next/navigation";
-import { WalletDefault } from "@coinbase/onchainkit/wallet";
+// import { WalletDefault } from "@coinbase/onchainkit/wallet"; // Commented out - wallet removed
 
 /**
  * @notice Main Header component with smart scroll behavior
@@ -23,7 +23,7 @@ export function Header() {
 
   // State for scroll behavior and UI
   const [isScrolled, setIsScrolled] = useState(false); // Header background blur state
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobile menu toggle
+  // const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobile menu toggle - COMMENTED OUT
   const [isHeaderVisible, setIsHeaderVisible] = useState(true); // Header visibility
   const [lastScrollY, setLastScrollY] = useState(0); // Previous scroll position
 
@@ -42,7 +42,7 @@ export function Header() {
         if (currentScrollY > lastScrollY && currentScrollY > 100) {
           // Scrolling down & past 100px
           setIsHeaderVisible(false);
-          setIsMobileMenuOpen(false); // Close mobile menu when hiding
+          // setIsMobileMenuOpen(false); // Close mobile menu when hiding - COMMENTED OUT
         } else if (currentScrollY < lastScrollY) {
           // Scrolling up
           setIsHeaderVisible(true);
@@ -57,17 +57,11 @@ export function Header() {
   }, [lastScrollY]);
 
   return (
-    <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ease-in-out ${
-        isHeaderVisible ? "translate-y-0" : "-translate-y-full"
-      } ${
-        isScrolled
-          ? "bg-white/95 dark:bg-gray-900/95 backdrop-blur-md shadow-md py-3"
-          : "bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm py-4 shadow-sm"
-      }`}
-    >
+    <header className="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 shadow-sm py-4">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between">
+          {/* COMMENTED OUT FOR EXPERIMENT - Logo removed */}
+          {/*
           <Link href="/" className="flex items-center">
             <div className="h-10 mr-3">
               <Image
@@ -82,8 +76,9 @@ export function Header() {
               Coinbase Onramp
             </span>
           </Link>
-
-          {/* Desktop Navigation */}
+          */}
+          <div></div> {/* Empty div to maintain layout */}
+          {/* Desktop Navigation - WALLET COMMENTED OUT FOR EXPERIMENT */}
           <nav className="hidden md:flex items-center space-x-2">
             <NavLink
               href="/"
@@ -93,12 +88,15 @@ export function Header() {
               Onramp
             </NavLink>
 
+            {/* COMMENTED OUT WALLET CONNECT BUTTON */}
+            {/*
             <div className="ml-4">
               <WalletDefault />
             </div>
+            */}
           </nav>
-
-          {/* Mobile Menu Button */}
+          {/* Mobile Menu Button - COMMENTED OUT FOR EXPERIMENT */}
+          {/*
           <button
             className="md:hidden text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white focus:outline-none"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -135,10 +133,12 @@ export function Header() {
               </svg>
             )}
           </button>
+          */}
         </div>
       </div>
 
-      {/* Mobile Navigation */}
+      {/* Mobile Navigation - COMMENTED OUT FOR EXPERIMENT */}
+      {/*
       {isMobileMenuOpen && (
         <div className="md:hidden bg-white dark:bg-gray-800 shadow-lg rounded-b-lg mt-2 py-4 px-4 absolute left-4 right-4">
           <nav className="flex flex-col space-y-3">
@@ -156,6 +156,7 @@ export function Header() {
           </nav>
         </div>
       )}
+      */}
     </header>
   );
 }
@@ -188,6 +189,8 @@ function NavLink({
   );
 }
 
+// COMMENTED OUT - Mobile navigation removed
+/*
 function MobileNavLink({
   href,
   children,
@@ -213,6 +216,7 @@ function MobileNavLink({
     </Link>
   );
 }
+*/
 
 // For backward compatibility
 export default Header;

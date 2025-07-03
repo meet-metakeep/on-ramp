@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
       for (const blockchain of blockchains) {
         const validation = validateAddressForNetwork(address, blockchain);
         if (!validation.isValid) {
-          console.error(`❌ Address validation failed: ${address} is not valid for ${blockchain}`);
+          console.error(`Address validation failed: ${address} is not valid for ${blockchain}`);
           console.error(`Validation error: ${validation.error}`);
           console.error(`Suggestion: ${validation.suggestion}`);
           
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      console.log(`✅ Server-side validation passed: ${address} is valid for ${blockchains.join(', ')}`);
+      console.log(`Server-side validation passed: ${address} is valid for ${blockchains.join(', ')}`);
     }
 
     // Generate JWT using CDP SDK

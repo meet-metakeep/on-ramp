@@ -54,21 +54,21 @@ const GeneratedLinkModal = memo(function GeneratedLinkModal({
             onClick={onCopy}
             className="w-full sm:w-1/2 bg-white border-2 border-gray-300 hover:bg-gray-50 hover:border-gray-400 text-gray-800 py-3 px-6 rounded-lg font-semibold transition-all duration-200 shadow-sm hover:shadow-md"
           >
-            📋 Copy URL
+            Copy URL
           </button>
           <button
             onClick={onOpen}
             className="w-full sm:w-1/2 bg-black-600 border-2 border-gray-300 hover:bg-black-700 text-black py-3 px-6 rounded-lg font-semibold transition-all duration-200 shadow-sm hover:shadow-md"
           >
-            🚀 Open URL
+            Open URL
           </button>
         </div>
 
         {/* Note */}
         <div className="mt-4 p-3 bg-gray-50 rounded-lg">
           <p className="text-xs text-gray-600">
-            💡 This link will redirect users directly to Coinbase to complete
-            their purchase.
+            This link will redirect users directly to Coinbase to complete their
+            purchase.
           </p>
         </div>
       </div>

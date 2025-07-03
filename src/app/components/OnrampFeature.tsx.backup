@@ -7,24 +7,16 @@
  * @author Meet - Coinbase Onramp Integration Demo
  */
 
-import { useState } from "react";
-// Removed wallet imports since we're using guest checkout only
+import React, { useState, useEffect } from "react";
+import { useAppKitAccount } from "@reown/appkit/react";
 import { generateOnrampURL } from "../utils/rampUtils";
+import { countryNames } from "../utils/onrampApi";
 import {
   validateAddressForNetwork,
   getExampleAddress,
 } from "../utils/addressValidation";
-// Removed GeneratedLinkModal import - no longer needed since we directly open URLs
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-// Removed AppKitConnectButton import - not needed for guest checkout
+import GeneratedLinkModal from "./GeneratedLinkModal";
+import AppKitConnectButton from "./AppKitConnectButton";
 
 /**
  * @dev US States configuration for location-specific onramp requirements
@@ -85,49 +77,45 @@ const US_STATES = [
 ];
 
 /**
- * @dev Supported cryptocurrency assets for onramp purchases
- * @notice Limited to verified guest checkout compatible assets only
- * @dev Removed: BTC, FIL, and other assets that fail session token generation
+ * @dev Supported cryptocurrency assets for guest checkout onramp purchases
+ * @notice Only includes verified working combinations for Coinbase guest checkout
+ * @dev Tested and confirmed working combinations - no experimental assets
  */
 const ASSETS = [
-  { symbol: "ETH", name: "Ethereum" },
   { symbol: "USDC", name: "USD Coin" },
-  { symbol: "SOL", name: "Solana" },
-  { symbol: "MATIC", name: "Polygon" },
+  { symbol: "ETH", name: "Ethereum" },
+  { symbol: "BTC", name: "Bitcoin" },
 ];
 
 /**
- * @dev Supported blockchain networks for crypto delivery
- * @notice Limited to verified guest checkout compatible networks only
- * @dev Removed: bitcoin, filecoin, and other networks that cause session failures
+ * @dev Asset-network compatibility mapping for guest checkout
+ * @notice Only includes combinations verified to work with Coinbase guest checkout
+ * @dev Removed experimental and unsupported combinations to prevent session token failures
+ */
+const ASSET_NETWORK_MAP: Record<string, string[]> = {
+  USDC: ["ethereum", "base", "polygon", "solana"],
+  ETH: ["ethereum", "base", "polygon"],
+  BTC: ["bitcoin"],
+};
+
+/**
+ * @dev Supported blockchain networks for guest checkout
+ * @notice Limited to networks that reliably work with guest checkout mode
+ * @dev Ordered by popularity and reliability
  */
 const NETWORKS = [
   { id: "ethereum", name: "Ethereum" },
   { id: "base", name: "Base" },
-  { id: "optimism", name: "Optimism" },
   { id: "polygon", name: "Polygon" },
-  { id: "arbitrum", name: "Arbitrum" },
   { id: "solana", name: "Solana" },
-].sort((a, b) => a.name.localeCompare(b.name));
+  { id: "bitcoin", name: "Bitcoin" },
+];
 
 /**
- * @dev Asset-Network compatibility mapping
- * @notice Limited to verified working combinations for guest checkout
- * @dev Removed problematic combinations that fail session token generation
+ * @dev Preset amounts optimized for guest checkout limits
+ * @notice Guest checkout has $500/week limit, so amounts are kept reasonable
  */
-const ASSET_NETWORK_MAP: Record<string, string[]> = {
-  // ETH - EVM networks only (verified working)
-  ETH: ["ethereum", "base", "optimism", "arbitrum", "polygon"],
-
-  // USDC - Most widely supported stablecoin (verified working)
-  USDC: ["ethereum", "base", "optimism", "arbitrum", "polygon", "solana"],
-
-  // SOL - Solana native token (verified working)
-  SOL: ["solana"],
-
-  // MATIC - Polygon native token (verified working)
-  MATIC: ["polygon", "ethereum"],
-};
+const PRESET_AMOUNTS = [2, 5, 10];
 
 /**
  * @dev Supported fiat currencies for payments
@@ -188,18 +176,40 @@ const PAYMENT_METHODS = [
  * @return JSX.Element The rendered onramp interface
  */
 export default function OnrampFeature() {
-  // Removed wallet connection hooks - using guest checkout only
+  // AppKit hooks for wallet connection management
+  const { address, isConnected } = useAppKitAccount();
+
+  // Add connection status logging
+  React.useEffect(() => {
+    if (isConnected && address) {
+      console.log("Wallet connected successfully:", {
+        address,
+        isConnected,
+      });
+      setConnectionStatus(
+        `✅ Connected: ${address.slice(0, 6)}...${address.slice(-4)}`
+      );
+      setIsConnecting(false);
+    } else if (!isConnected) {
+      setConnectionStatus("");
+      setIsConnecting(false);
+    }
+  }, [isConnected, address]);
 
   // Core onramp configuration state
-  const [selectedAsset, setSelectedAsset] = useState("USDC"); // Cryptocurrency to purchase
-  const [amount, setAmount] = useState("5"); // Fiat amount to spend
-  const [selectedNetwork, setSelectedNetwork] = useState("ethereum"); // Blockchain network for delivery (ethereum is most widely compatible)
+  const [selectedAsset, setSelectedAsset] = useState("USDC");
+  const [amount, setAmount] = useState("5");
+  const [selectedNetwork, setSelectedNetwork] = useState("ethereum");
+  const [walletAddress, setWalletAddress] = useState("");
+  const [isGuestCheckout, setIsGuestCheckout] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [generatedUrl, setGeneratedUrl] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Removed connection status - not needed for guest checkout
-
-  // UI state management
-  // Removed generatedUrl state since we now directly open URLs // Generated Coinbase onramp URL
-  // Removed showUrlModal state since we now directly open URLs
+  // Add connection status for debugging
+  const [connectionStatus, setConnectionStatus] = useState("");
+  const [isConnecting, setIsConnecting] = useState(false);
 
   // Geographic and compliance settings - Fixed to US only
   const [selectedCountry] = useState("US"); // Fixed to US only
@@ -220,51 +230,52 @@ export default function OnrampFeature() {
 
   const presetAmounts = ["2", "5", "10"];
 
-  /**
-   * @notice Generates a secure session token for enhanced onramp security
-   * @dev Calls the server-side API to create JWT tokens using CDP credentials
-   * @return Promise<string | null> The generated session token or null if failed
-   */
+  // Validate asset-network combination
+  const isValidCombination = (asset: string, network: string): boolean => {
+    return ASSET_NETWORK_MAP[asset]?.includes(network) || false;
+  };
+
+  // Update network when asset changes to ensure valid combination
+  useEffect(() => {
+    if (!isValidCombination(selectedAsset, selectedNetwork)) {
+      const compatibleNetworks = ASSET_NETWORK_MAP[selectedAsset];
+      if (compatibleNetworks && compatibleNetworks.length > 0) {
+        setSelectedNetwork(compatibleNetworks[0]);
+      }
+    }
+  }, [selectedAsset, selectedNetwork]);
+
+  // Generate session token with improved error handling
   const generateSessionToken = async () => {
-    setIsGeneratingToken(true);
-    try {
-      const targetAddress = manualAddress; // Always use manual address for guest checkout
+    if (!walletAddress.trim()) {
+      setErrorMessage("Please enter a wallet address");
+      return null;
+    }
 
-      if (!targetAddress) {
-        throw new Error("No wallet address available");
-      }
-
-      // Validate address format for the selected network
-      const validation = validateAddressForNetwork(
-        targetAddress,
-        selectedNetwork
+    // Validate combination before making API call
+    if (!isValidCombination(selectedAsset, selectedNetwork)) {
+      setErrorMessage(
+        `${selectedAsset} is not supported on ${selectedNetwork} network for guest checkout. Please select a different combination.`
       );
-      if (!validation.isValid) {
-        const exampleAddr = getExampleAddress(selectedNetwork);
-        const errorMessage = `${validation.error}\n\n${validation.suggestion}${
-          exampleAddr
-            ? `\n\nExample for ${selectedNetwork}: ${exampleAddr}`
-            : ""
-        }`;
-        alert(errorMessage);
-        throw new Error(`Address validation failed: ${validation.error}`);
-      }
+      return null;
+    }
 
-      // Prepare addresses array with the selected network
+    try {
+      setIsGenerating(true);
+      setErrorMessage(null);
+
       const addresses = [
         {
-          address: targetAddress,
-          blockchains: [selectedNetwork], // Include the specific network (solana, ethereum, base, etc.)
+          address: walletAddress.trim(),
+          blockchains: [selectedNetwork],
         },
       ];
 
-      console.log(
-        `Address validation passed: ${targetAddress} is valid for ${selectedNetwork} network`
-      );
-
       const response = await fetch("/api/session", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           addresses,
           assets: [selectedAsset],
@@ -273,20 +284,33 @@ export default function OnrampFeature() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Failed to generate session token");
+
+        // Handle specific Coinbase API errors gracefully
+        if (error.details && typeof error.details === "object") {
+          if (
+            error.details.reason?.includes("not supported") ||
+            error.details.reason?.includes("not available")
+          ) {
+            setErrorMessage(
+              `This ${selectedAsset} and ${selectedNetwork} combination is not currently supported for guest checkout. Please try a different combination or create a Coinbase account.`
+            );
+            return null;
+          }
+        }
+
+        throw new Error(error.error || "Session token generation failed");
       }
 
       const data = await response.json();
-      if (data.token) {
-        return data.token;
-      } else {
-        throw new Error("Failed to generate session token");
-      }
+      return data.token;
     } catch (error) {
-      console.error("Session token generation failed:", error);
+      console.error("Session token generation error:", error);
+      setErrorMessage(
+        "Unable to generate session token. This combination may not be supported for guest checkout. Please try a different asset or network."
+      );
       return null;
     } finally {
-      setIsGeneratingToken(false);
+      setIsGenerating(false);
     }
   };
 
@@ -305,12 +329,14 @@ export default function OnrampFeature() {
    * @return Promise<void> Handles the complete onramp flow
    */
   const handleOnramp = async () => {
+    // Clear any previous errors
+    setErrorMessage(null);
     // Since guest checkout is now default, always use manual address
-    const targetAddress = manualAddress;
+    const targetAddress = walletAddress;
 
     // Validation: Ensure we have a destination address (guest checkout mode)
     if (!targetAddress) {
-      alert("Please enter a valid wallet address to continue.");
+      setErrorMessage("Please enter a valid wallet address to continue.");
       return;
     }
 
@@ -327,7 +353,7 @@ export default function OnrampFeature() {
             ? `\n\nExample for ${selectedNetwork}: ${exampleAddr}`
             : ""
         }`;
-        alert(errorMessage);
+        setErrorMessage(`${validation.error}. ${validation.suggestion}`);
         return;
       }
     }
@@ -337,29 +363,36 @@ export default function OnrampFeature() {
     if (useSecureInit) {
       sessionToken = await generateSessionToken();
       if (!sessionToken) {
-        alert("Could not generate session token. Please try again.");
+        // Error message already set in generateSessionToken
         return;
       }
     }
 
     const url = generateOnrampURL({
       sessionToken,
-      asset: selectedAsset,
-      // amount: amount, // Optional when using session tokens according to Coinbase docs
-      network: selectedNetwork,
-      paymentMethod: selectedPaymentMethod,
-      paymentCurrency: selectedPaymentCurrency,
-      address: targetAddress,
-      redirectUrl: window.location.href,
-      country: selectedCountry,
-      // state: selectedState, // Not needed for our setup
+      // COMMENTED OUT FOR EXPERIMENT - Session token only
+      // asset: selectedAsset,
+      // amount: amount,
+      // network: selectedNetwork,
+      // paymentMethod: selectedPaymentMethod,
+      // paymentCurrency: selectedPaymentCurrency,
+      // address: targetAddress,
+      // redirectUrl: window.location.href,
+      // country: selectedCountry,
+      // state: selectedState,
     });
-
-    // Directly open the URL instead of showing modal
-    window.open(url, "_blank");
+    setGeneratedUrl(url);
+    setShowModal(true);
   };
 
-  // Removed handleCopyUrl and handleOpenUrl since we now directly open URLs
+  const handleCopyUrl = () => {
+    navigator.clipboard.writeText(generatedUrl);
+    alert("URL copied to clipboard!");
+  };
+
+  const handleOpenUrl = () => {
+    window.open(generatedUrl, "_blank");
+  };
 
   const getAssetDisplayName = (symbol: string) => {
     const asset = ASSETS.find((a) => a.symbol === symbol);
@@ -392,20 +425,8 @@ export default function OnrampFeature() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4 py-8">
         <div className="text-center mb-8">
-          <div className="mb-6">
-            <div className="flex items-center justify-center mb-2">
-              <span className="text-sm font-medium text-gray-400 tracking-wider uppercase">
-                Powered by
-              </span>
-            </div>
-            <div className="flex items-center justify-center">
-              <span className="text-2xl font-bold text-gray-800 dark:text-white tracking-tight">
-                Metakeep
-              </span>
-            </div>
-          </div>
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            Onramp
+            Metakeep Onramp
           </h1>
           <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto"></p>
         </div>
@@ -413,7 +434,9 @@ export default function OnrampFeature() {
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Left Column - Configuration */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
-            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white"></h2>
+            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
+              Configure Your Onramp
+            </h2>
 
             {/* Integration Mode Tabs - Commented out as requested */}
             {/* 
@@ -449,9 +472,10 @@ export default function OnrampFeature() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Select Asset
               </label>
-              <Select
+              <select
                 value={selectedAsset}
-                onValueChange={(newAsset) => {
+                onChange={(e) => {
+                  const newAsset = e.target.value;
                   setSelectedAsset(newAsset);
 
                   // Update network if current selection is incompatible with new asset
@@ -463,28 +487,24 @@ export default function OnrampFeature() {
                     setSelectedNetwork(compatibleNetworks[0]); // Set to first compatible network
                   }
                 }}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select an asset" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ASSETS.map((asset) => {
-                    const isCompatible =
-                      ASSET_NETWORK_MAP[asset.symbol]?.includes(
-                        selectedNetwork
-                      ) || !ASSET_NETWORK_MAP[asset.symbol];
-                    return (
-                      <SelectItem key={asset.symbol} value={asset.symbol}>
-                        {asset.name} ({asset.symbol})
-                        {!isCompatible
-                          ? " - Not available on " +
-                            getNetworkInfo(selectedNetwork)
-                          : ""}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+                {ASSETS.map((asset) => {
+                  const isCompatible =
+                    ASSET_NETWORK_MAP[asset.symbol]?.includes(
+                      selectedNetwork
+                    ) || !ASSET_NETWORK_MAP[asset.symbol];
+                  return (
+                    <option key={asset.symbol} value={asset.symbol}>
+                      {asset.name} ({asset.symbol})
+                      {!isCompatible
+                        ? " - Not available on " +
+                          getNetworkInfo(selectedNetwork)
+                        : ""}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
 
             {/* Network Selection */}
@@ -492,25 +512,21 @@ export default function OnrampFeature() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Network
               </label>
-              <Select
+              <select
                 value={selectedNetwork}
-                onValueChange={setSelectedNetwork}
+                onChange={(e) => setSelectedNetwork(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a network" />
-                </SelectTrigger>
-                <SelectContent>
-                  {NETWORKS.filter(
-                    (network) =>
-                      ASSET_NETWORK_MAP[selectedAsset]?.includes(network.id) ||
-                      !ASSET_NETWORK_MAP[selectedAsset] // Show all networks if no mapping exists
-                  ).map((network) => (
-                    <SelectItem key={network.id} value={network.id}>
-                      {network.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                {NETWORKS.filter(
+                  (network) =>
+                    ASSET_NETWORK_MAP[selectedAsset]?.includes(network.id) ||
+                    !ASSET_NETWORK_MAP[selectedAsset] // Show all networks if no mapping exists
+                ).map((network) => (
+                  <option key={network.id} value={network.id}>
+                    {network.name}
+                  </option>
+                ))}
+              </select>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 {selectedAsset} is available on{" "}
                 {ASSET_NETWORK_MAP[selectedAsset]?.length || NETWORKS.length}{" "}
@@ -532,29 +548,31 @@ export default function OnrampFeature() {
               </label>
               <div className="flex flex-wrap gap-2 mb-2">
                 {presetAmounts.map((preset) => (
-                  <Button
+                  <button
                     key={preset}
-                    variant="outline"
-                    size="sm"
                     onClick={() => setAmount(preset)}
-                    className="flex-shrink-0"
+                    className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      amount === preset
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
+                    }`}
                   >
                     ${preset}
-                  </Button>
+                  </button>
                 ))}
               </div>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 text-base font-medium">
+              <div className="flex items-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 px-3 py-3 mb-2">
+                <span className="text-gray-500 dark:text-gray-400 text-base font-medium mr-2">
                   $
                 </span>
-                <Input
+                <input
                   id="amount"
                   type="number"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   min="0"
                   step="0.01"
-                  className="pl-8"
+                  className="w-full bg-transparent outline-none border-none text-gray-900 dark:text-white text-base"
                   placeholder="0"
                 />
               </div>
@@ -633,43 +651,43 @@ export default function OnrampFeature() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Destination Wallet Address
                 </label>
-                <Input
+                <input
                   type="text"
-                  value={manualAddress}
-                  onChange={(e) => setManualAddress(e.target.value)}
+                  value={walletAddress}
+                  onChange={(e) => setWalletAddress(e.target.value)}
                   placeholder={`${getExampleAddress(
                     selectedNetwork
                   )} (${selectedNetwork} address)`}
-                  className={`font-mono text-sm ${
-                    manualAddress &&
-                    !validateAddressForNetwork(manualAddress, selectedNetwork)
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm ${
+                    walletAddress &&
+                    !validateAddressForNetwork(walletAddress, selectedNetwork)
                       .isValid
-                      ? "border-red-500 focus:border-red-500"
-                      : "border-gray-300 focus:border-orange-500"
+                      ? "border-red-500 dark:border-red-400 focus:ring-red-500 focus:border-red-500"
+                      : "border-gray-300 dark:border-gray-600 focus:ring-orange-500 focus:border-orange-500"
                   }`}
                 />
-                {manualAddress &&
-                  !validateAddressForNetwork(manualAddress, selectedNetwork)
+                {walletAddress &&
+                  !validateAddressForNetwork(walletAddress, selectedNetwork)
                     .isValid && (
                     <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                       Invalid address format for {selectedNetwork} network.
                       Expected:{" "}
                       {
                         validateAddressForNetwork(
-                          manualAddress,
+                          walletAddress,
                           selectedNetwork
                         ).suggestion
                       }
                     </p>
                   )}
-                {manualAddress &&
-                  validateAddressForNetwork(manualAddress, selectedNetwork)
+                {walletAddress &&
+                  validateAddressForNetwork(walletAddress, selectedNetwork)
                     .isValid && (
                     <p className="text-xs text-green-600 dark:text-green-400 mt-1">
                       Valid {selectedNetwork} address
                     </p>
                   )}
-                {!manualAddress && (
+                {!walletAddress && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Enter a {selectedNetwork} wallet address where you want to
                     receive the crypto
@@ -678,7 +696,85 @@ export default function OnrampFeature() {
               </div>
             </div>
 
-            {/* Security Status - Always Enabled */}
+            {/* Action Button */}
+            <button
+              onClick={handleOnramp}
+              disabled={isGenerating}
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center shadow-lg"
+            >
+              {isGenerating ? (
+                <>
+                  <svg
+                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Generating...
+                </>
+              ) : (
+                "Buy Crypto Now"
+              )}
+            </button>
+
+            {/* Error Message Display */}
+            {errorMessage && (
+              <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <svg
+                      className="h-5 w-5 text-red-400"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-red-800 dark:text-red-200">
+                      {errorMessage}
+                    </p>
+                  </div>
+                  <div className="ml-auto pl-3">
+                    <button
+                      onClick={() => setErrorMessage(null)}
+                      className="inline-flex text-red-400 hover:text-red-600 focus:outline-none"
+                    >
+                      <span className="sr-only">Dismiss</span>
+                      <svg
+                        className="h-5 w-5"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Right Column - Preview */}
@@ -747,23 +843,58 @@ export default function OnrampFeature() {
           */}
 
             {/* Guest Checkout Info */}
-            {useManualAddress && (
+            {walletAddress && (
               <div className="mb-6 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
-                <div>
-                  <p className="text-sm font-medium text-orange-800 dark:text-orange-200">
-                    Guest Checkout Mode
-                  </p>
-                  <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-                    {manualAddress
-                      ? `Crypto will be sent to: ${manualAddress.slice(
-                          0,
-                          6
-                        )}...${manualAddress.slice(-4)}`
-                      : "Enter a wallet address to receive crypto"}
-                  </p>
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <svg
+                      className="h-5 w-5 text-orange-600 dark:text-orange-400"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm font-medium text-orange-800 dark:text-orange-200">
+                      Guest Checkout Mode
+                    </p>
+                    <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                      {walletAddress
+                        ? `Crypto will be sent to: ${walletAddress.slice(
+                            0,
+                            6
+                          )}...${walletAddress.slice(-4)}`
+                        : "Enter a wallet address to receive crypto"}
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
+
+            <div className="flex-grow flex items-center justify-center">
+              <div className="text-center">
+                <div
+                  className={`inline-block font-medium py-3 px-8 rounded-lg transition-all shadow-md hover:shadow-lg mb-4 cursor-pointer ${
+                    isConnected || walletAddress
+                      ? "bg-blue-600 hover:bg-blue-700 text-white"
+                      : "bg-gray-600 text-gray-300 cursor-not-allowed"
+                  }`}
+                  onClick={
+                    isConnected || walletAddress
+                      ? handleBuyWithCoinbase
+                      : () => alert("Please connect your wallet first")
+                  }
+                >
+                  Buy with Coinbase
+                </div>
+                <p className="text-gray-600 dark:text-gray-400 text-sm"></p>
+              </div>
+            </div>
 
             {/* Transaction Summary */}
             <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
@@ -808,13 +939,11 @@ export default function OnrampFeature() {
                     Destination:
                   </span>
                   <span className="text-gray-900 dark:text-white font-mono text-xs">
-                    {useManualAddress
-                      ? manualAddress
-                        ? `${manualAddress.slice(0, 6)}...${manualAddress.slice(
-                            -4
-                          )}`
-                        : "Not set"
-                      : "Guest checkout only"}
+                    {walletAddress
+                      ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(
+                          -4
+                        )}`
+                      : "Not set"}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -822,11 +951,7 @@ export default function OnrampFeature() {
                     Mode:
                   </span>
                   <span className="text-gray-900 dark:text-white">
-                    {useManualAddress
-                      ? "Guest Checkout"
-                      : integrationMode === "API"
-                      ? "Onramp API"
-                      : "Payment Link"}
+                    {walletAddress ? "Guest Checkout" : "Connect wallet"}
                   </span>
                 </div>
               </div>
@@ -834,31 +959,56 @@ export default function OnrampFeature() {
 
             {/* Main Action Button */}
             <div className="mt-6 mb-4">
-              <Button
+              <button
                 onClick={handleOnramp}
                 disabled={
-                  isGeneratingToken || !manualAddress // Always require manual address for guest checkout
+                  isGenerating || (!walletAddress && integrationMode === "API")
                 }
-                className="w-full h-12 text-base font-semibold"
-                size="lg"
+                className={`w-full font-medium py-4 px-6 rounded-lg transition-all shadow-lg hover:shadow-xl border-2 ${
+                  isGenerating || (!walletAddress && integrationMode === "API")
+                    ? "bg-gray-400 cursor-not-allowed border-gray-300"
+                    : "bg-blue-600 hover:bg-blue-700 border-blue-600 hover:border-blue-700"
+                }`}
+                style={{
+                  minHeight: "48px",
+                  fontSize: "16px",
+                  fontWeight: "600",
+                  display: "block",
+                  visibility: "visible",
+                  opacity: 1,
+                  zIndex: 10,
+                  color: "black",
+                  backgroundColor:
+                    isGenerating ||
+                    (!walletAddress && integrationMode === "API")
+                      ? "lightgray"
+                      : "lightblue",
+                }}
               >
-                {isGeneratingToken
-                  ? " Generating Session Token..."
-                  : integrationMode === "LINK"
-                  ? " Generate Payment URL"
-                  : " Buy Crypto Now"}
-              </Button>
+                {isGenerating
+                  ? "Generating Session Token..."
+                  : "Buy Crypto Now"}
+              </button>
 
               {/* Status Message */}
-              {useManualAddress && !manualAddress && (
+              {!walletAddress && integrationMode === "API" && (
                 <p className="text-sm text-red-600 dark:text-red-400 mt-2 text-center"></p>
               )}
-              {/* Removed wallet connection message - using guest checkout only */}
             </div>
           </div>
         </div>
 
-        {/* Modal removed - now directly opening URLs */}
+        {showModal && (
+          <GeneratedLinkModal
+            title={`${
+              walletAddress ? "Guest Checkout" : "Onramp API"
+            } URL Generated`}
+            url={generatedUrl}
+            onClose={() => setShowModal(false)}
+            onCopy={handleCopyUrl}
+            onOpen={handleOpenUrl}
+          />
+        )}
       </div>
     </div>
   );
