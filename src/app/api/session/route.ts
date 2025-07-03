@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { generateJwt } from '@coinbase/cdp-sdk/auth';
-import { validateAddressForNetwork } from '../../utils/addressValidation';
+// import { validateAddressForNetwork } from '../../utils/addressValidation'; // REMOVED - Let Coinbase API handle validation
 
 /**
  * @dev Interface for session token request body
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate each address against its specified blockchains
+    // Basic validation - ensure required fields are present
     for (const addressEntry of finalAddresses) {
       const { address, blockchains } = addressEntry;
       
@@ -97,30 +97,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Validate the address format for each blockchain
-      for (const blockchain of blockchains) {
-        const validation = validateAddressForNetwork(address, blockchain);
-        if (!validation.isValid) {
-          console.error(`Address validation failed: ${address} is not valid for ${blockchain}`);
-          console.error(`Validation error: ${validation.error}`);
-          console.error(`Suggestion: ${validation.suggestion}`);
-          
-          return NextResponse.json(
-            {
-              error: 'Invalid address format for specified blockchain',
-              details: {
-                address,
-                blockchain,
-                reason: validation.error,
-                suggestion: validation.suggestion,
-              },
-            },
-            { status: 400 }
-          );
-        }
-      }
-      
-      console.log(`Server-side validation passed: ${address} is valid for ${blockchains.join(', ')}`);
+      // Log the address and blockchain for debugging (let Coinbase API handle format validation)
+      console.log(`Processing address: ${address} for blockchain(s): ${blockchains.join(', ')}`);
     }
 
     // Generate JWT using CDP SDK

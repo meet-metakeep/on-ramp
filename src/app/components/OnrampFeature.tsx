@@ -10,20 +10,20 @@
 import { useState } from "react";
 // Removed wallet imports since we're using guest checkout only
 import { generateOnrampURL } from "../utils/rampUtils";
-import {
-  validateAddressForNetwork,
-  getExampleAddress,
-} from "../utils/addressValidation";
+// import {
+//   validateAddressForNetwork,
+//   getExampleAddress,
+// } from "../utils/addressValidation"; // COMMENTED OUT FOR EXPERIMENT - Using universal validation now
 // Removed GeneratedLinkModal import - no longer needed since we directly open URLs
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+// import {
+//   Select,
+//   SelectContent,
+//   SelectItem,
+//   SelectTrigger,
+//   SelectValue,
+// } from "@/components/ui/select"; // COMMENTED OUT FOR EXPERIMENT
 // Removed AppKitConnectButton import - not needed for guest checkout
 
 /**
@@ -111,23 +111,23 @@ const NETWORKS = [
 ].sort((a, b) => a.name.localeCompare(b.name));
 
 /**
- * @dev Asset-Network compatibility mapping
+ * @dev Asset-Network compatibility mapping - COMMENTED OUT FOR EXPERIMENT
  * @notice Limited to verified working combinations for guest checkout
  * @dev Removed problematic combinations that fail session token generation
  */
-const ASSET_NETWORK_MAP: Record<string, string[]> = {
-  // ETH - EVM networks only (verified working)
-  ETH: ["ethereum", "base", "optimism", "arbitrum", "polygon"],
+// const ASSET_NETWORK_MAP: Record<string, string[]> = {
+//   // ETH - EVM networks only (verified working)
+//   ETH: ["ethereum", "base", "optimism", "arbitrum", "polygon"],
 
-  // USDC - Most widely supported stablecoin (verified working)
-  USDC: ["ethereum", "base", "optimism", "arbitrum", "polygon", "solana"],
+//   // USDC - Most widely supported stablecoin (verified working)
+//   USDC: ["ethereum", "base", "optimism", "arbitrum", "polygon", "solana"],
 
-  // SOL - Solana native token (verified working)
-  SOL: ["solana"],
+//   // SOL - Solana native token (verified working)
+//   SOL: ["solana"],
 
-  // MATIC - Polygon native token (verified working)
-  MATIC: ["polygon", "ethereum"],
-};
+//   // MATIC - Polygon native token (verified working)
+//   MATIC: ["polygon", "ethereum"],
+// };
 
 /**
  * @dev Supported fiat currencies for payments
@@ -145,42 +145,42 @@ const PAYMENT_CURRENCIES = [
 ];
 
 /**
- * @dev Supported payment methods with regional availability
+ * @dev Supported payment methods with regional availability - COMMENTED OUT FOR EXPERIMENT
  * @notice Each method has different processing times and limits
  * @dev Only includes methods officially supported by Coinbase Onramp API
  */
-const PAYMENT_METHODS = [
-  {
-    code: "CARD",
-    name: "Debit Card",
-    description: "Debit or Credit Card (Available in 90+ countries)",
-  },
-  {
-    code: "ACH_BANK_ACCOUNT",
-    name: "ACH Bank Transfer",
-    description: "ACH Bank Transfer (US only)",
-  },
-  {
-    code: "APPLE_PAY",
-    name: "Apple Pay",
-    description: "Apple Pay (US only, Guest Checkout)",
-  },
-  // Temporarily commented out payment methods not confirmed as supported
-  // {
-  //   code: "BANK_TRANSFER",
-  //   name: "Bank Transfer",
-  //   description: "Direct bank transfer",
-  // },
-  // {
-  //   code: "SEPA_BANK_ACCOUNT",
-  //   name: "SEPA",
-  //   description: "SEPA Bank Transfer (Europe)",
-  // },
-  // { code: "IDEAL", name: "iDEAL", description: "iDEAL (Netherlands)" },
-  // { code: "SOFORT", name: "SOFORT", description: "SOFORT (Europe)" },
-  // { code: "GOOGLE_PAY", name: "Google Pay", description: "Google Pay" },
-  // { code: "PAYPAL", name: "PayPal", description: "PayPal" },
-];
+// const PAYMENT_METHODS = [
+//   {
+//     code: "CARD",
+//     name: "Debit Card",
+//     description: "Debit or Credit Card (Available in 90+ countries)",
+//   },
+//   {
+//     code: "ACH_BANK_ACCOUNT",
+//     name: "ACH Bank Transfer",
+//     description: "ACH Bank Transfer (US only)",
+//   },
+//   {
+//     code: "APPLE_PAY",
+//     name: "Apple Pay",
+//     description: "Apple Pay (US only, Guest Checkout)",
+//   },
+//   // Temporarily commented out payment methods not confirmed as supported
+//   // {
+//   //   code: "BANK_TRANSFER",
+//   //   name: "Bank Transfer",
+//   //   description: "Direct bank transfer",
+//   // },
+//   // {
+//   //   code: "SEPA_BANK_ACCOUNT",
+//   //   name: "SEPA",
+//   //   description: "SEPA Bank Transfer (Europe)",
+//   // },
+//   // { code: "IDEAL", name: "iDEAL", description: "iDEAL (Netherlands)" },
+//   // { code: "SOFORT", name: "SOFORT", description: "SOFORT (Europe)" },
+//   // { code: "GOOGLE_PAY", name: "Google Pay", description: "Google Pay" },
+//   // { code: "PAYPAL", name: "PayPal", description: "PayPal" },
+// ];
 
 /**
  * @notice Main OnrampFeature React component
@@ -191,9 +191,12 @@ export default function OnrampFeature() {
   // Removed wallet connection hooks - using guest checkout only
 
   // Core onramp configuration state
-  const [selectedAsset, setSelectedAsset] = useState("USDC"); // Cryptocurrency to purchase
-  const [amount, setAmount] = useState("5"); // Fiat amount to spend
-  const [selectedNetwork, setSelectedNetwork] = useState("ethereum"); // Blockchain network for delivery (ethereum is most widely compatible)
+  // const [selectedAsset, setSelectedAsset] = useState("USDC"); // Cryptocurrency to purchase - COMMENTED OUT FOR EXPERIMENT
+  // const [amount, setAmount] = useState("5"); // Fiat amount to spend - COMMENTED OUT FOR EXPERIMENT
+  const selectedAsset = "USDC"; // Fixed value since asset selection is disabled
+  // const amount = "5"; // Fixed value since amount selection is disabled - COMMENTED OUT FOR EXPERIMENT
+  // const [selectedNetwork, setSelectedNetwork] = useState("ethereum"); // Blockchain network for delivery - COMMENTED OUT FOR EXPERIMENT
+  // const selectedNetwork = "ethereum"; // Fixed value since network selection is disabled - COMMENTED OUT FOR EXPERIMENT (now using dynamic detection)
 
   // Removed connection status - not needed for guest checkout
 
@@ -202,7 +205,7 @@ export default function OnrampFeature() {
   // Removed showUrlModal state since we now directly open URLs
 
   // Geographic and compliance settings - Fixed to US only
-  const [selectedCountry] = useState("US"); // Fixed to US only
+  // const [selectedCountry] = useState("US"); // Fixed to US only - COMMENTED OUT FOR EXPERIMENT
   // Removed state selection for experiment
 
   // Security and session management - always enabled for proper functionality
@@ -210,15 +213,15 @@ export default function OnrampFeature() {
   const [isGeneratingToken, setIsGeneratingToken] = useState(false); // Token generation loading state
 
   // Payment configuration
-  const [selectedPaymentCurrency, setSelectedPaymentCurrency] = useState("USD"); // Fiat currency
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("CARD"); // Payment method
+  // const [selectedPaymentCurrency, setSelectedPaymentCurrency] = useState("USD"); // Fiat currency - COMMENTED OUT FOR EXPERIMENT
+  // const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("CARD"); // Payment method - COMMENTED OUT FOR EXPERIMENT
 
   // Integration mode and wallet handling - simplified to single mode
   const [integrationMode] = useState("API"); // Fixed to API mode only
   const [manualAddress, setManualAddress] = useState(""); // Manual wallet address for guest checkout
   const [useManualAddress, setUseManualAddress] = useState(true); // Guest checkout toggle - DEFAULT FOR EXPERIMENT
 
-  const presetAmounts = ["2", "5", "10"];
+  // const presetAmounts = ["2", "5", "10"]; // COMMENTED OUT FOR EXPERIMENT
 
   /**
    * @notice Generates a secure session token for enhanced onramp security
@@ -234,32 +237,25 @@ export default function OnrampFeature() {
         throw new Error("No wallet address available");
       }
 
-      // Validate address format for the selected network
-      const validation = validateAddressForNetwork(
-        targetAddress,
-        selectedNetwork
-      );
-      if (!validation.isValid) {
-        const exampleAddr = getExampleAddress(selectedNetwork);
-        const errorMessage = `${validation.error}\n\n${validation.suggestion}${
-          exampleAddr
-            ? `\n\nExample for ${selectedNetwork}: ${exampleAddr}`
-            : ""
-        }`;
-        alert(errorMessage);
-        throw new Error(`Address validation failed: ${validation.error}`);
+      // Validate address format (universal validation)
+      if (!isValidAnyAddress(targetAddress)) {
+        alert(
+          "Please enter a valid wallet address (EVM, Solana, or Bitcoin format)."
+        );
+        throw new Error("Address validation failed: Invalid address format");
       }
 
-      // Prepare addresses array with the selected network
+      // Prepare addresses array with the dynamically detected network
+      const detectedNetwork = getNetworkForAddress(targetAddress);
       const addresses = [
         {
           address: targetAddress,
-          blockchains: [selectedNetwork], // Include the specific network (solana, ethereum, base, etc.)
+          blockchains: [detectedNetwork], // Include the specific network (solana, ethereum, base, etc.)
         },
       ];
 
       console.log(
-        `Address validation passed: ${targetAddress} is valid for ${selectedNetwork} network`
+        `Address validation passed: ${targetAddress} is valid for ${detectedNetwork} network`
       );
 
       const response = await fetch("/api/session", {
@@ -314,22 +310,12 @@ export default function OnrampFeature() {
       return;
     }
 
-    // Validate address format for the selected network (even without secure init)
-    if (targetAddress) {
-      const validation = validateAddressForNetwork(
-        targetAddress,
-        selectedNetwork
+    // Validate address format (universal validation for any supported address type)
+    if (targetAddress && !isValidAnyAddress(targetAddress)) {
+      alert(
+        "Please enter a valid wallet address (EVM, Solana, or Bitcoin format)."
       );
-      if (!validation.isValid) {
-        const exampleAddr = getExampleAddress(selectedNetwork);
-        const errorMessage = `${validation.error}\n\n${validation.suggestion}${
-          exampleAddr
-            ? `\n\nExample for ${selectedNetwork}: ${exampleAddr}`
-            : ""
-        }`;
-        alert(errorMessage);
-        return;
-      }
+      return;
     }
 
     // Generate secure session token if enabled
@@ -344,14 +330,14 @@ export default function OnrampFeature() {
 
     const url = generateOnrampURL({
       sessionToken,
-      asset: selectedAsset,
+      // asset: selectedAsset, // COMMENTED OUT FOR EXPERIMENT
       // amount: amount, // Optional when using session tokens according to Coinbase docs
-      network: selectedNetwork,
-      paymentMethod: selectedPaymentMethod,
-      paymentCurrency: selectedPaymentCurrency,
+      // network: selectedNetwork, // COMMENTED OUT FOR EXPERIMENT
+      // paymentMethod: selectedPaymentMethod, // COMMENTED OUT FOR EXPERIMENT
+      // paymentCurrency: selectedPaymentCurrency, // COMMENTED OUT FOR EXPERIMENT
       address: targetAddress,
-      redirectUrl: window.location.href,
-      country: selectedCountry,
+      // redirectUrl: window.location.href, // COMMENTED OUT FOR EXPERIMENT
+      // country: selectedCountry, // COMMENTED OUT FOR EXPERIMENT
       // state: selectedState, // Not needed for our setup
     });
 
@@ -361,19 +347,19 @@ export default function OnrampFeature() {
 
   // Removed handleCopyUrl and handleOpenUrl since we now directly open URLs
 
-  const getAssetDisplayName = (symbol: string) => {
-    const asset = ASSETS.find((a) => a.symbol === symbol);
-    return asset ? `${asset.name} (${symbol})` : symbol;
-  };
+  // const getAssetDisplayName = (symbol: string) => {
+  //   const asset = ASSETS.find((a) => a.symbol === symbol);
+  //   return asset ? `${asset.name} (${symbol})` : symbol;
+  // }; // COMMENTED OUT FOR EXPERIMENT
 
-  const getNetworkInfo = (networkId: string) => {
-    const network = NETWORKS.find((n) => n.id === networkId);
-    return network ? network.name : networkId;
-  };
+  // const getNetworkInfo = (networkId: string) => {
+  //   const network = NETWORKS.find((n) => n.id === networkId);
+  //   return network ? network.name : networkId;
+  // }; // COMMENTED OUT FOR EXPERIMENT
 
-  const selectedPaymentMethodInfo = PAYMENT_METHODS.find(
-    (pm) => pm.code === selectedPaymentMethod
-  );
+  // const selectedPaymentMethodInfo = PAYMENT_METHODS.find(
+  //   (pm) => pm.code === selectedPaymentMethod
+  // ); // COMMENTED OUT FOR EXPERIMENT
 
   const getConnectorDisplayName = (connectorId: string) => {
     switch (connectorId) {
@@ -386,6 +372,93 @@ export default function OnrampFeature() {
       default:
         return connectorId;
     }
+  };
+
+  // Universal address validation function
+  const isValidAnyAddress = (address: string): boolean => {
+    if (!address) return false;
+
+    const normalizedAddress = address.trim();
+
+    // EVM address (Ethereum, Base, Polygon, etc.)
+    if (/^0x[a-fA-F0-9]{40}$/.test(normalizedAddress)) {
+      return true;
+    }
+
+    // Solana address
+    if (
+      /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(normalizedAddress) &&
+      !normalizedAddress.startsWith("0x")
+    ) {
+      return true;
+    }
+
+    // Bitcoin address
+    if (
+      /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(normalizedAddress) ||
+      /^bc1[a-z0-9]{39,59}$/.test(normalizedAddress)
+    ) {
+      return true;
+    }
+
+    return false;
+  };
+
+  // Get address type for display
+  const getAddressType = (address: string): string => {
+    if (!address) return "Unknown";
+
+    const normalizedAddress = address.trim();
+
+    if (/^0x[a-fA-F0-9]{40}$/.test(normalizedAddress)) {
+      return "EVM";
+    }
+
+    if (
+      /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(normalizedAddress) &&
+      !normalizedAddress.startsWith("0x")
+    ) {
+      return "Solana";
+    }
+
+    if (
+      /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(normalizedAddress) ||
+      /^bc1[a-z0-9]{39,59}$/.test(normalizedAddress)
+    ) {
+      return "Bitcoin";
+    }
+
+    return "Unknown";
+  };
+
+  // Get the correct network for session token generation based on address type
+  const getNetworkForAddress = (address: string): string => {
+    if (!address) return "ethereum"; // Default fallback
+
+    const normalizedAddress = address.trim();
+
+    // EVM address - use ethereum as the primary network
+    if (/^0x[a-fA-F0-9]{40}$/.test(normalizedAddress)) {
+      return "ethereum";
+    }
+
+    // Solana address - use solana network
+    if (
+      /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(normalizedAddress) &&
+      !normalizedAddress.startsWith("0x")
+    ) {
+      return "solana";
+    }
+
+    // Bitcoin address - use bitcoin network
+    if (
+      /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(normalizedAddress) ||
+      /^bc1[a-z0-9]{39,59}$/.test(normalizedAddress)
+    ) {
+      return "bitcoin";
+    }
+
+    return "ethereum"; // Default fallback
   };
 
   return (
@@ -444,7 +517,8 @@ export default function OnrampFeature() {
             {/* Country and State Selection - REMOVED FOR EXPERIMENT */}
             {/* Fixed to US only, no user selection needed */}
 
-            {/* Asset Selection */}
+            {/* Asset Selection - COMMENTED OUT FOR EXPERIMENT */}
+            {/*
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Select Asset
@@ -486,8 +560,10 @@ export default function OnrampFeature() {
                 </SelectContent>
               </Select>
             </div>
+            */}
 
-            {/* Network Selection */}
+            {/* Network Selection - COMMENTED OUT FOR EXPERIMENT */}
+            {/*
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Network
@@ -521,8 +597,10 @@ export default function OnrampFeature() {
                   : ""}
               </p>
             </div>
+            */}
 
-            {/* Amount */}
+            {/* Amount - COMMENTED OUT FOR EXPERIMENT */}
+            {/*
             <div className="mb-4">
               <label
                 htmlFor="amount"
@@ -559,6 +637,7 @@ export default function OnrampFeature() {
                 />
               </div>
             </div>
+            */}
 
             {/* Payment Currency - COMMENTED OUT FOR EXPERIMENT */}
             {/*
@@ -637,42 +716,29 @@ export default function OnrampFeature() {
                   type="text"
                   value={manualAddress}
                   onChange={(e) => setManualAddress(e.target.value)}
-                  placeholder={`${getExampleAddress(
-                    selectedNetwork
-                  )} (${selectedNetwork} address)`}
+                  placeholder="Enter any valid wallet address (EVM, Solana, etc.)"
                   className={`font-mono text-sm ${
-                    manualAddress &&
-                    !validateAddressForNetwork(manualAddress, selectedNetwork)
-                      .isValid
+                    manualAddress && !isValidAnyAddress(manualAddress)
                       ? "border-red-500 focus:border-red-500"
                       : "border-gray-300 focus:border-orange-500"
                   }`}
                 />
-                {manualAddress &&
-                  !validateAddressForNetwork(manualAddress, selectedNetwork)
-                    .isValid && (
-                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                      Invalid address format for {selectedNetwork} network.
-                      Expected:{" "}
-                      {
-                        validateAddressForNetwork(
-                          manualAddress,
-                          selectedNetwork
-                        ).suggestion
-                      }
-                    </p>
-                  )}
-                {manualAddress &&
-                  validateAddressForNetwork(manualAddress, selectedNetwork)
-                    .isValid && (
-                    <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                      Valid {selectedNetwork} address
-                    </p>
-                  )}
+                {manualAddress && !isValidAnyAddress(manualAddress) && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                    Invalid address format. Please enter a valid EVM (0x...) or
+                    Solana address.
+                  </p>
+                )}
+                {manualAddress && isValidAnyAddress(manualAddress) && (
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                    Valid wallet address detected (
+                    {getAddressType(manualAddress)})
+                  </p>
+                )}
                 {!manualAddress && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Enter a {selectedNetwork} wallet address where you want to
-                    receive the crypto
+                    Enter any valid wallet address where you want to receive the
+                    crypto
                   </p>
                 )}
               </div>
@@ -771,6 +837,8 @@ export default function OnrampFeature() {
                 Transaction Summary
               </h3>
               <div className="space-y-2 text-sm">
+                {/* Amount and Asset display - COMMENTED OUT FOR EXPERIMENT */}
+                {/*
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">
                     Amount:
@@ -787,6 +855,9 @@ export default function OnrampFeature() {
                     {getAssetDisplayName(selectedAsset)}
                   </span>
                 </div>
+                */}
+                {/* Network display - COMMENTED OUT FOR EXPERIMENT */}
+                {/*
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">
                     Network:
@@ -795,6 +866,9 @@ export default function OnrampFeature() {
                     {getNetworkInfo(selectedNetwork)}
                   </span>
                 </div>
+                */}
+                {/* Payment method display - COMMENTED OUT FOR EXPERIMENT */}
+                {/*
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">
                     Payment:
@@ -803,6 +877,7 @@ export default function OnrampFeature() {
                     {selectedPaymentMethodInfo?.name}
                   </span>
                 </div>
+                */}
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">
                     Destination:

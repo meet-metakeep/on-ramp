@@ -4,7 +4,7 @@ import "./globals.css";
 // Removed ContextProvider - not needed for guest checkout
 
 export const metadata: Metadata = {
-  title: "Coinbase Onramp & Offramp Demo",
+  title: "Metakeep Onramp",
   description:
     "A demo application showcasing Coinbase Onramp and Offramp integration",
   icons: {
